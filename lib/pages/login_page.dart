@@ -7,7 +7,10 @@ class LoginPage extends StatelessWidget {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _pwController = TextEditingController();
 
-  LoginPage({Key? key});
+  // tap to go to register page
+  final void Function()? onTap;
+
+  LoginPage({Key? key, required this.onTap});
 
   // login method
   void login() {}
@@ -51,7 +54,7 @@ class LoginPage extends StatelessWidget {
 
             // paswword textfield
             MyTextfield(
-              hintText: "password",
+              hintText: "Password",
               obscureText: true,
               controller: _pwController,
             ),
@@ -73,9 +76,15 @@ class LoginPage extends StatelessWidget {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                Text(
-                  "Register now",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                GestureDetector(
+                  onTap: onTap,
+                  child: Text(
+                    "Register now",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
               ],
             ),
