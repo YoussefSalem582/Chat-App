@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
-
 import '../pages/settings_page.dart';
+import '../services/auth/auth_service.dart';
 
 class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
+
+  void logout() {
+    // get auth service
+    final auth = AuthService();
+    auth.signOut();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +38,7 @@ class MyDrawer extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(left: 25),
                 child: ListTile(
-                  title: Text("H O M E"),
+                  title: const Text("H O M E"),
                   leading: Icon(
                     Icons.home,
                     color: Theme.of(context).colorScheme.primary,
@@ -48,7 +54,7 @@ class MyDrawer extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(left: 25),
                 child: ListTile(
-                  title: Text("S E T T I N G S"),
+                  title: const Text("S E T T I N G S"),
                   leading: Icon(
                     Icons.settings,
                     color: Theme.of(context).colorScheme.primary,
@@ -60,7 +66,7 @@ class MyDrawer extends StatelessWidget {
                     // navigate to settings page
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => SettingsPage(),
+                      MaterialPageRoute(builder: (context) => const SettingsPage(),
                       ),
                     );
                   },
@@ -73,14 +79,14 @@ class MyDrawer extends StatelessWidget {
 
           // logout list title
           Padding(
-            padding: EdgeInsets.only(left: 25, bottom: 25),
+            padding: const EdgeInsets.only(left: 25, bottom: 25),
             child: ListTile(
-              title: Text("L O G O U T"),
+              title: const Text("L O G O U T"),
               leading: Icon(
                 Icons.logout,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              onTap: () {},
+              onTap: logout,
             ),
           ),
         ],
