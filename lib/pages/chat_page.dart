@@ -126,8 +126,9 @@ class _ChatPageState extends State<ChatPage> {
         // return list view
         return ListView(
           controller: _scrollController,
+          reverse: false, // This makes the list view start from the bottom
           children:
-          snapshot.data!.docs.map((doc) => _buildMessageItem(doc)).toList(),
+          snapshot.data!.docs.reversed.map((doc) => _buildMessageItem(doc)).toList(),
         );
       },
     );
