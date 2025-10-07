@@ -13,9 +13,13 @@ A modern chat application built with Flutter and Firebase, featuring a clean UI 
 ## Screenshots
 
 <p float="left">
-  <img src="screenshots/login.png" width="200" alt="Login Screen"/>
-  <img src="screenshots/chat.png" width="200" alt="Chat Screen"/>
-  <img src="screenshots/dark_mode.png" width="200" alt="Dark Mode"/>
+  <img src="https://github.com/user-attachments/assets/1ab00436-b4a9-4c5e-8ac6-993d4217b049" width="200" alt="Login Screen"/>
+  <img src="https://github.com/user-attachments/assets/04f9ffdc-141a-483d-834b-fcc1a9f44ec4" width="200" alt="Chat Screen"/>
+  <img src="https://github.com/user-attachments/assets/82e8e26e-153f-46a8-afa8-fea30a4bdeeb" width="200" alt="Home screen"/>
+  <img src="https://github.com/user-attachments/assets/e26bca29-3b22-4bd8-a435-c13045ffab45" width="200" alt="drawer"/>
+  <img src="https://github.com/user-attachments/assets/804f23ab-873b-44e9-81c9-40dc4ae52c72" width="200" alt="Chat"/>
+  <img src="https://github.com/user-attachments/assets/fe3e933e-28ab-466e-81c3-45c2c1c13e78" width="200" alt="Settings"/>
+  <img src="https://github.com/user-attachments/assets/d6649551-24cf-414d-b923-212bebbac7dc" width="200" alt="light Mode"/>
 </p>
 
 ## Getting Started
