@@ -67,18 +67,24 @@ class HomePage extends StatelessWidget {
   ) {
     // display all users except for the current user
     if (userData["email"] != _authService.getCurrentUser()!.email) {
+      // Check if email and uid are not null
+      String? email = userData["email"] as String?;
+      String? uid = userData["uid"] as String?;
+
+      // Skip if either is null
+      if (email == null || uid == null) {
+        return Container();
+      }
+
       return UserTile(
-        text: userData["email"],
+        text: email,
         onTap: () {
           // tapped on a user -> go to chat page
           Navigator.push(
             context,
             MaterialPageRoute(
               builder:
-                  (context) => ChatPage(
-                    receiverEmail: userData["email"],
-                    receiverID: userData["uid"],
-                  ),
+                  (context) => ChatPage(receiverEmail: email, receiverID: uid),
             ),
           );
         },
