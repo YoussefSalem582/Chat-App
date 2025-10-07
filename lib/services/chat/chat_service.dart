@@ -79,4 +79,96 @@ class ChatService {
         .orderBy("timestamp", descending: true)
         .snapshots();
   }
+
+  // delete message (soft delete - mark as deleted instead of removing)
+  Future<void> deleteMessage(String chatRoomID, String messageID) async {
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .update({'message': 'DELETED MESSAGE', 'isDeleted': true});
+    } catch (e) {
+      throw "Failed to delete message: ${e.toString()}";
+    }
+  }
+
+  // get chat room ID for two users
+  String getChatRoomID(String userID, String otherUserID) {
+    List<String> ids = [userID, otherUserID];
+    ids.sort();
+    return ids.join("_");
+  }
+
+  // get last message for a chat
+  Stream<QuerySnapshot> getLastMessage(String userID, String otherUserID) {
+    String chatRoomID = getChatRoomID(userID, otherUserID);
+    return _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .orderBy("timestamp", descending: true)
+        .limit(1)
+        .snapshots();
+  }
+
+  // set typing status
+  Future<void> setTypingStatus(String receiverID, bool isTyping) async {
+    String currentUserID = _auth.currentUser!.uid;
+    String chatRoomID = getChatRoomID(currentUserID, receiverID);
+
+    try {
+      await _firestore.collection("chat_rooms").doc(chatRoomID).set({
+        'typing_$currentUserID': isTyping,
+        'lastActivity': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      // Silently fail - typing indicator is not critical
+    }
+  }
+
+  // get typing status
+  Stream<DocumentSnapshot> getTypingStatus(String userID, String otherUserID) {
+    String chatRoomID = getChatRoomID(userID, otherUserID);
+    return _firestore.collection("chat_rooms").doc(chatRoomID).snapshots();
+  }
+
+  // add reaction to message
+  Future<void> addReaction(
+    String chatRoomID,
+    String messageID,
+    String reaction,
+  ) async {
+    String currentUserID = _auth.currentUser!.uid;
+
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .set({
+            'reactions': {currentUserID: reaction},
+          }, SetOptions(merge: true));
+    } catch (e) {
+      throw "Failed to add reaction: ${e.toString()}";
+    }
+  }
+
+  // remove reaction from message
+  Future<void> removeReaction(String chatRoomID, String messageID) async {
+    String currentUserID = _auth.currentUser!.uid;
+
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .update({'reactions.$currentUserID': FieldValue.delete()});
+    } catch (e) {
+      throw "Failed to remove reaction: ${e.toString()}";
+    }
+  }
 }

@@ -1,14 +1,26 @@
 # Chat App
 
-A modern chat application built with Flutter and Firebase, featuring a clean UI and real-time messaging capabilities.
+A modern chat application built with Flutter and Firebase, featuring a clean UI, real-time messaging capabilities, and enhanced user experience.
 
 ## Features
 
-- 🌓 Light and Dark mode themes
-- 🔐 Secure authentication with Firebase
-- 💬 Real-time messaging
-- 📱 Cross-platform support (iOS, Android, Web)
-- 🎨 Customizable user interface
+### Core Features
+- 🌓 **Light and Dark Mode**: Seamless theme switching with custom color schemes
+- 🔐 **Secure Authentication**: Firebase Authentication with email/password
+- 💬 **Real-time Messaging**: Instant message delivery using Cloud Firestore
+- 📱 **Cross-platform Support**: iOS, Android, Web, Windows, macOS
+- 👤 **User Profiles**: View your profile information
+
+### Enhanced Features (New)
+- ⏰ **Message Timestamps**: Smart time formatting (today, yesterday, date)
+- ✅ **Input Validation**: Email and password validation with helpful error messages
+- 🎨 **Improved UI/UX**: 
+  - Loading indicators for all async operations
+  - Empty state screens with helpful messages
+  - Better error handling with user-friendly messages
+  - Enhanced chat bubbles with timestamps
+- 🚀 **Performance**: Optimized message loading and auto-scroll
+- 🛡️ **Error Handling**: Comprehensive error catching with readable error messages
 
 ## Screenshots
 

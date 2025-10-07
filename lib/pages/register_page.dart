@@ -14,31 +14,126 @@ class RegisterPage extends StatelessWidget {
   RegisterPage({super.key, required this.onTap});
 
   // register method
-  void register(BuildContext context) {
+  void register(BuildContext context) async {
+    // Validate inputs
+    if (_emailController.text.trim().isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Email Required"),
+              content: Text("Please enter your email address."),
+            ),
+      );
+      return;
+    }
+
+    if (_pwController.text.isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Password Required"),
+              content: Text("Please enter a password."),
+            ),
+      );
+      return;
+    }
+
+    if (_pwController.text.length < 6) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Weak Password"),
+              content: Text("Password must be at least 6 characters long."),
+            ),
+      );
+      return;
+    }
+
+    if (_confirmPwController.text.isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Confirm Password"),
+              content: Text("Please confirm your password."),
+            ),
+      );
+      return;
+    }
+
     // get auth service
     final authService = AuthService();
 
     // passwords match -> create user
     if (_pwController.text == _confirmPwController.text) {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
       try {
-        authService.signUpWithEmailPassword(
-          _emailController.text,
+        await authService.signUpWithEmailPassword(
+          _emailController.text.trim(),
           _pwController.text,
         );
+        // Close loading indicator
+        if (context.mounted) Navigator.pop(context);
       } catch (e) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(title: Text(e.toString())),
-        );
+        // Close loading indicator
+        if (context.mounted) Navigator.pop(context);
+
+        // Get user-friendly error message
+        String errorCode = e.toString();
+        String errorMessage;
+
+        if (errorCode.contains('email-already-in-use')) {
+          errorMessage =
+              "This email is already registered. Please login instead.";
+        } else if (errorCode.contains('invalid-email')) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (errorCode.contains('weak-password')) {
+          errorMessage =
+              "Password is too weak. Please choose a stronger password.";
+        } else if (errorCode.contains('network-request-failed')) {
+          errorMessage = "Network error. Please check your connection.";
+        } else if (errorCode.contains('operation-not-allowed')) {
+          errorMessage = "Registration is currently not allowed.";
+        } else {
+          errorMessage = "Registration failed: $errorCode";
+        }
+
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  title: const Text("Registration Failed"),
+                  content: Text(errorMessage),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
+          );
+        }
       }
     }
     // passwords don't match -> tell user to fix
     else {
       showDialog(
         context: context,
-        builder: (context) => const AlertDialog(
-          title: Text("Passwords don't match!"),
-        ),
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Passwords Don't Match"),
+              content: Text("Please make sure both passwords are identical."),
+            ),
       );
     }
   }
@@ -46,7 +141,7 @@ class RegisterPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

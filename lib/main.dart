@@ -3,9 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/auth/auth_gate.dart';
-import 'themes/light_mode.dart';
 import 'themes/theme_provider.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +16,7 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget{
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
@@ -30,4 +28,3 @@ class MyApp extends StatelessWidget{
     );
   }
 }
-
