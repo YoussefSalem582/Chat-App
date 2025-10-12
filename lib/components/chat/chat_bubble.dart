@@ -1,4 +1,4 @@
-import 'package:chat_app/components/message_reaction_picker.dart';
+import 'package:chat_app/components/chat/message_reaction_picker.dart';
 import 'package:chat_app/themes/theme_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

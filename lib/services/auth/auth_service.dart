@@ -24,11 +24,13 @@ class AuthService {
         password: password,
       );
 
-      // save user info if it doesn't already exist
+      // save user info if it doesn't already exist and set online status
       await _firestore.collection("Users").doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': userCredential.user!.email,
-      });
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -45,10 +47,12 @@ class AuthService {
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
 
-      // save user info in a separate doc
+      // save user info in a separate doc and set online status
       await _firestore.collection("Users").doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': userCredential.user!.email,
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
       });
 
       return userCredential;
@@ -97,12 +101,14 @@ class AuthService {
         credential,
       );
 
-      // Save user info to Firestore
+      // Save user info to Firestore and set online status
       await _firestore.collection("Users").doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': userCredential.user!.email,
         'displayName': userCredential.user!.displayName,
         'photoURL': userCredential.user!.photoURL,
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       return userCredential;
@@ -148,10 +154,12 @@ class AuthService {
         credential,
       );
 
-      // Save user info to Firestore
+      // Save user info to Firestore and set online status
       await _firestore.collection("Users").doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'phoneNumber': userCredential.user!.phoneNumber,
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       return userCredential;
@@ -164,10 +172,28 @@ class AuthService {
 
   // Sign out from all providers
   Future<void> signOut() async {
-    // Delete FCM token before signing out
-    await _notificationService.deleteFCMToken();
+    try {
+      // Get current user ID
+      final userId = _auth.currentUser?.uid;
 
-    await _googleSignIn.signOut();
-    return await _auth.signOut();
+      // Set user offline status before signing out
+      if (userId != null) {
+        await _firestore.collection("Users").doc(userId).update({
+          'isOnline': false,
+          'lastSeen': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Delete FCM token before signing out
+      await _notificationService.deleteFCMToken();
+
+      await _googleSignIn.signOut();
+      return await _auth.signOut();
+    } catch (e) {
+      // If update fails, still sign out
+      await _notificationService.deleteFCMToken();
+      await _googleSignIn.signOut();
+      return await _auth.signOut();
+    }
   }
 }

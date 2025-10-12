@@ -38,7 +38,11 @@ class ChatService {
   }
 
   // send message
-  Future<void> sendMessage(String receiverID, message) async {
+  Future<void> sendMessage(
+    String receiverID,
+    message, {
+    String? messageType,
+  }) async {
     // get current user info
     final String currentUserID = _auth.currentUser!.uid;
     final String currentUserEmail = _auth.currentUser!.email!;
@@ -52,6 +56,7 @@ class ChatService {
       receiverEmail: receiverID,
       message: message,
       timestamp: timestamp,
+      messageType: messageType ?? 'text',
     );
 
     // construct chat room ID for the two users (sorted to ensure uniqueness)
@@ -183,6 +188,112 @@ class ChatService {
           .update({'reactions.$currentUserID': FieldValue.delete()});
     } catch (e) {
       throw "Failed to remove reaction: ${e.toString()}";
+    }
+  }
+
+  // Reply to a message
+  Future<void> sendReplyMessage(
+    String receiverID,
+    String message,
+    String replyToMessageId,
+    String replyToMessage,
+  ) async {
+    final String currentUserID = _auth.currentUser!.uid;
+    final String currentUserEmail = _auth.currentUser!.email!;
+    final Timestamp timestamp = Timestamp.now();
+
+    List<String> ids = [currentUserID, receiverID];
+    ids.sort();
+    String chatRoomID = ids.join("_");
+
+    await _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .add({
+          'senderID': currentUserID,
+          'senderEmail': currentUserEmail,
+          'receiverID': receiverID,
+          'message': message,
+          'timestamp': timestamp,
+          'replyTo': {'messageId': replyToMessageId, 'message': replyToMessage},
+        });
+
+    // Send notification
+    try {
+      await _notificationService.sendNotificationToUser(
+        receiverId: receiverID,
+        senderName: currentUserEmail,
+        message: message,
+      );
+    } catch (e) {
+      print('Failed to send notification: $e');
+    }
+  }
+
+  // Get user online status
+  Stream<DocumentSnapshot> getUserStatus(String userId) {
+    return _firestore.collection("Users").doc(userId).snapshots();
+  }
+
+  // Update user online status
+  Future<void> updateUserStatus(bool isOnline) async {
+    String currentUserID = _auth.currentUser!.uid;
+    try {
+      await _firestore.collection("Users").doc(currentUserID).update({
+        'isOnline': isOnline,
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Failed to update status: $e');
+    }
+  }
+
+  // Mark messages as read
+  Future<void> markMessagesAsRead(String chatRoomID, String userId) async {
+    try {
+      final messages =
+          await _firestore
+              .collection("chat_rooms")
+              .doc(chatRoomID)
+              .collection("messages")
+              .where('receiverID', isEqualTo: userId)
+              .where('isRead', isEqualTo: false)
+              .get();
+
+      for (var doc in messages.docs) {
+        await doc.reference.update({'isRead': true});
+      }
+    } catch (e) {
+      print('Failed to mark messages as read: $e');
+    }
+  }
+
+  // Search messages
+  Future<List<Map<String, dynamic>>> searchMessages(
+    String chatRoomID,
+    String query,
+  ) async {
+    try {
+      final snapshot =
+          await _firestore
+              .collection("chat_rooms")
+              .doc(chatRoomID)
+              .collection("messages")
+              .orderBy("timestamp", descending: true)
+              .get();
+
+      return snapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final message = data['message']?.toString().toLowerCase() ?? '';
+            return message.contains(query.toLowerCase()) &&
+                (data['isDeleted'] ?? false) == false;
+          })
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
+    } catch (e) {
+      throw "Failed to search messages: ${e.toString()}";
     }
   }
 }

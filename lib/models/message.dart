@@ -7,6 +7,7 @@ class Message {
   final String receiverEmail;
   final String message;
   final Timestamp timestamp;
+  final String? messageType; // 'text', 'image', 'document', 'location'
 
   Message({
     required this.senderID,
@@ -15,6 +16,7 @@ class Message {
     required this.receiverEmail,
     required this.message,
     required this.timestamp,
+    this.messageType,
   });
 
   // convert to a map
@@ -26,6 +28,7 @@ class Message {
       'receiverEmail': receiverEmail,
       'message': message,
       'timestamp': timestamp,
+      'messageType': messageType ?? 'text',
     };
   }
 }

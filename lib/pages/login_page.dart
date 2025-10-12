@@ -1,5 +1,4 @@
-import 'package:chat_app/components/my_button.dart';
-import 'package:chat_app/components/my_textfield.dart';
+import 'package:chat_app/components/components.dart';
 import 'package:chat_app/pages/forgot_password_page.dart';
 import 'package:chat_app/pages/phone_login_page.dart';
 import 'package:flutter/material.dart';
