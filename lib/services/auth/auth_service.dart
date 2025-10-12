@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../notification/notification_service.dart';
 
 class AuthService {
   // instance of auth & firestore
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final NotificationService _notificationService = NotificationService();
 
   // get current user
   User? getCurrentUser() {
@@ -162,6 +164,9 @@ class AuthService {
 
   // Sign out from all providers
   Future<void> signOut() async {
+    // Delete FCM token before signing out
+    await _notificationService.deleteFCMToken();
+
     await _googleSignIn.signOut();
     return await _auth.signOut();
   }

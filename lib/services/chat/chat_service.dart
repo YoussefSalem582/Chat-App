@@ -1,4 +1,5 @@
 import 'package:chat_app/models/message.dart';
+import 'package:chat_app/services/notification/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -6,6 +7,7 @@ class ChatService {
   // get instance of firestore & auth
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // get user stream
   /*
@@ -63,6 +65,18 @@ class ChatService {
         .doc(chatRoomID)
         .collection("messages")
         .add(newMessage.toMap());
+
+    // Send push notification to receiver
+    try {
+      await _notificationService.sendNotificationToUser(
+        receiverId: receiverID,
+        senderName: currentUserEmail,
+        message: message,
+      );
+    } catch (e) {
+      // Notification failure shouldn't stop message sending
+      print('Failed to send notification: $e');
+    }
   }
 
   // get messages
