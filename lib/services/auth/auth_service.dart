@@ -42,15 +42,25 @@ class AuthService {
   }
 
   // sing up
-  Future<UserCredential> signUpWithEmailPassword(String email, password) async {
+  Future<UserCredential> signUpWithEmailPassword(
+    String email,
+    String password, {
+    String? displayName,
+  }) async {
     try {
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
+
+      // Update display name if provided
+      if (displayName != null && displayName.isNotEmpty) {
+        await userCredential.user!.updateDisplayName(displayName);
+      }
 
       // save user info in a separate doc and set online status
       await _firestore.collection("Users").doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': userCredential.user!.email,
+        'displayName': displayName ?? '',
         'isOnline': true,
         'lastSeen': FieldValue.serverTimestamp(),
       });

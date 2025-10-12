@@ -191,56 +191,73 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: const Text("Phone Login"),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.grey,
-        elevation: 0,
-      ),
-      body: Center(
+      body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Phone icon
-              Icon(
-                Icons.phone_android,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
+              const SizedBox(height: 20),
+
+              // Back button
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                  color: Colors.grey,
+                ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+
+              // Phone icon in circular container
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF667eea).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.phone_android_rounded,
+                    size: 60,
+                    color: Color(0xFF667eea),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 40),
 
               // Title
               Text(
-                _codeSent ? "Enter Verification Code" : "Phone Number Login",
-                style: TextStyle(
-                  fontSize: 24,
+                _codeSent ? "Verify Code" : "Phone Login",
+                style: const TextStyle(
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.inversePrimary,
                 ),
+                textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 15),
+              const SizedBox(height: 8),
 
-              // Instructions
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
-                  _codeSent
-                      ? "Enter the 6-digit code sent to your phone."
-                      : "Enter your phone number to receive a verification code.",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  textAlign: TextAlign.center,
+              // Subtitle
+              Text(
+                _codeSent
+                    ? "Enter the 6-digit code sent to your phone"
+                    : "Enter your phone number to receive a verification code",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                 ),
+                textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
 
               // Phone number textfield (only show if code not sent)
               if (!_codeSent) ...[
@@ -248,8 +265,9 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                   hintText: "Phone Number (with country code)",
                   obscureText: false,
                   controller: _phoneController,
+                  prefixIcon: Icons.phone_outlined,
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 16),
               ],
 
               // OTP textfield (only show if code sent)
@@ -258,64 +276,75 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                   hintText: "Verification Code",
                   obscureText: false,
                   controller: _otpController,
+                  prefixIcon: Icons.sms_outlined,
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 16),
               ],
+
+              const SizedBox(height: 16),
 
               // Send OTP or Verify button
               _isLoading
-                  ? const CircularProgressIndicator()
+                  ? const Center(child: CircularProgressIndicator())
                   : MyButton(
                     text: _codeSent ? "Verify Code" : "Send OTP",
                     onTap: _codeSent ? verifyOTP : sendOTP,
                   ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 24),
 
               // Resend code button (only show if code sent)
               if (_codeSent) ...[
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _codeSent = false;
-                      _verificationId = null;
-                      _otpController.clear();
-                    });
-                  },
-                  child: Text(
-                    "Resend Code",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 10),
-
-              // Back to login
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Back to ",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Text(
-                      "Email Login",
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _codeSent = false;
+                        _verificationId = null;
+                        _otpController.clear();
+                      });
+                    },
+                    child: const Text(
+                      "Resend Code",
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: Color(0xFF667eea),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
                       ),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Back to login
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Back to ",
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 15,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Text(
+                        "Email Login",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF667eea),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
+              const SizedBox(height: 40),
             ],
           ),
         ),

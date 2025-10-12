@@ -11,6 +11,7 @@ class ModernUserTile extends StatefulWidget {
   final bool? hasProfileImage;
   final bool isOnline;
   final VoidCallback onTap;
+  final int unreadCount;
 
   const ModernUserTile({
     super.key,
@@ -22,6 +23,7 @@ class ModernUserTile extends StatefulWidget {
     this.hasProfileImage,
     this.isOnline = true,
     required this.onTap,
+    this.unreadCount = 0,
   });
 
   @override
@@ -218,6 +220,27 @@ class _ModernUserTileState extends State<ModernUserTile> {
                     ],
                   ),
                 ),
+                // Unread count badge
+                if (widget.unreadCount > 0)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF667eea),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      widget.unreadCount > 99 ? '99+' : '${widget.unreadCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 // Arrow Icon
                 Icon(
                   Icons.arrow_forward_ios,

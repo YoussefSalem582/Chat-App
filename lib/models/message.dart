@@ -8,6 +8,7 @@ class Message {
   final String message;
   final Timestamp timestamp;
   final String? messageType; // 'text', 'image', 'document', 'location'
+  final bool isRead; // Track if message has been read
 
   Message({
     required this.senderID,
@@ -17,6 +18,7 @@ class Message {
     required this.message,
     required this.timestamp,
     this.messageType,
+    this.isRead = false, // Default to unread
   });
 
   // convert to a map
@@ -29,6 +31,7 @@ class Message {
       'message': message,
       'timestamp': timestamp,
       'messageType': messageType ?? 'text',
+      'isRead': isRead,
     };
   }
 }

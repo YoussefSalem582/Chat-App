@@ -462,6 +462,8 @@ class _HomePageState extends State<HomePage>
 
   // build a list of users except for the current user
   Widget _buildUserList() {
+    final currentUserId = _authService.getCurrentUser()?.uid;
+
     return StreamBuilder(
       stream: _chatService.getUserStream(),
       builder: (context, snapshot) {
@@ -531,21 +533,33 @@ class _HomePageState extends State<HomePage>
           );
         }
 
-        // Filter and build user list
-        final filteredUsers =
+        // Filter users
+        var filteredUsers =
             snapshot.data!
                 .where((userData) {
                   // Filter by search query
                   if (_searchQuery.isEmpty) return true;
                   // Handle null email safely
                   String? email = userData["email"];
+                  String? displayName = userData["displayName"];
                   if (email == null) return false;
-                  return email.toLowerCase().contains(_searchQuery);
+
+                  String searchLower = _searchQuery.toLowerCase();
+                  bool matchesEmail = email.toLowerCase().contains(searchLower);
+                  bool matchesName =
+                      displayName?.toLowerCase().contains(searchLower) ?? false;
+
+                  return matchesEmail || matchesName;
                 })
                 .where((userData) {
                   // Exclude current user
                   String? email = userData["email"];
                   return email != _authService.getCurrentUser()?.email;
+                })
+                .where((userData) {
+                  // Exclude admin from regular users' view
+                  String? email = userData["email"];
+                  return email != 'admin@gmail.com';
                 })
                 .toList();
 
@@ -595,25 +609,113 @@ class _HomePageState extends State<HomePage>
           );
         }
 
-        // return animated list
-        return SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            return TweenAnimationBuilder(
-              duration: Duration(milliseconds: 300 + (index * 100)),
-              tween: Tween<double>(begin: 0, end: 1),
-              curve: Curves.easeOutCubic,
-              builder: (context, double value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: Opacity(opacity: value, child: child),
+        // Use FutureBuilder to fetch last message timestamps for sorting
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _getUsersWithLastMessageInfo(filteredUsers, currentUserId!),
+          builder: (context, usersSnapshot) {
+            if (!usersSnapshot.hasData) {
+              return SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Loading conversations...",
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final sortedUsers = usersSnapshot.data!;
+
+            // Sort users: online first, then by last message time
+            sortedUsers.sort((a, b) {
+              bool aOnline = a['isOnline'] ?? false;
+              bool bOnline = b['isOnline'] ?? false;
+
+              // Online users first
+              if (aOnline && !bOnline) return -1;
+              if (!aOnline && bOnline) return 1;
+
+              // Then sort by last message timestamp
+              Timestamp? aTime = a['lastMessageTime'];
+              Timestamp? bTime = b['lastMessageTime'];
+
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+
+              return bTime.compareTo(aTime); // Most recent first
+            });
+
+            // return animated list
+            return SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                return TweenAnimationBuilder(
+                  duration: Duration(milliseconds: 300 + (index * 100)),
+                  tween: Tween<double>(begin: 0, end: 1),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, double value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: Opacity(opacity: value, child: child),
+                    );
+                  },
+                  child: _buildUserListTile(sortedUsers[index], context),
                 );
-              },
-              child: _buildUserListTile(filteredUsers[index], context),
+              }, childCount: sortedUsers.length),
             );
-          }, childCount: filteredUsers.length),
+          },
         );
       },
     );
+  }
+
+  // Helper method to get users with last message info
+  Future<List<Map<String, dynamic>>> _getUsersWithLastMessageInfo(
+    List<Map<String, dynamic>> users,
+    String currentUserId,
+  ) async {
+    List<Map<String, dynamic>> usersWithInfo = [];
+
+    for (var user in users) {
+      String otherUserId = user['uid'];
+      String chatRoomID = _chatService.getChatRoomID(
+        currentUserId,
+        otherUserId,
+      );
+
+      try {
+        // Get last message
+        final messagesSnapshot =
+            await _firestore
+                .collection("chat_rooms")
+                .doc(chatRoomID)
+                .collection("messages")
+                .orderBy("timestamp", descending: true)
+                .limit(1)
+                .get();
+
+        Timestamp? lastMessageTime;
+        if (messagesSnapshot.docs.isNotEmpty) {
+          lastMessageTime = messagesSnapshot.docs.first.data()['timestamp'];
+        }
+
+        usersWithInfo.add({...user, 'lastMessageTime': lastMessageTime});
+      } catch (e) {
+        // If error, add user without last message time
+        usersWithInfo.add({...user, 'lastMessageTime': null});
+      }
+    }
+
+    return usersWithInfo;
   }
 
   // build individual list tile for user
@@ -640,24 +742,38 @@ class _HomePageState extends State<HomePage>
     String? emojiAvatar = userData["emojiAvatar"];
     bool? hasProfileImage = userData["hasProfileImage"];
 
-    return ModernUserTile(
-      email: displayText,
-      userId: uid ?? "",
-      displayName: displayName,
-      photoURL: photoURL,
-      emojiAvatar: emojiAvatar,
-      hasProfileImage: hasProfileImage,
-      isOnline: isOnline,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => ChatPage(
-                  receiverEmail: email ?? displayText,
-                  receiverID: uid ?? "",
-                ),
-          ),
+    final currentUserId = _authService.getCurrentUser()?.uid;
+
+    // Use StreamBuilder to get real-time unread count
+    return StreamBuilder<int>(
+      stream:
+          currentUserId != null && uid != null
+              ? _chatService.getUnreadMessageCount(currentUserId, uid)
+              : Stream.value(0),
+      builder: (context, unreadSnapshot) {
+        int unreadCount = unreadSnapshot.data ?? 0;
+
+        return ModernUserTile(
+          email: displayText,
+          userId: uid ?? "",
+          displayName: displayName,
+          photoURL: photoURL,
+          emojiAvatar: emojiAvatar,
+          hasProfileImage: hasProfileImage,
+          isOnline: isOnline,
+          unreadCount: unreadCount,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => ChatPage(
+                      receiverEmail: email ?? displayText,
+                      receiverID: uid ?? "",
+                    ),
+              ),
+            );
+          },
         );
       },
     );

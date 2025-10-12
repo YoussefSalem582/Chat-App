@@ -3,6 +3,8 @@ import 'package:chat_app/components/components.dart';
 import '../services/auth/auth_service.dart';
 
 class RegisterPage extends StatelessWidget {
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _pwController = TextEditingController();
   final TextEditingController _confirmPwController = TextEditingController();
@@ -15,6 +17,30 @@ class RegisterPage extends StatelessWidget {
   // register method
   void register(BuildContext context) async {
     // Validate inputs
+    if (_firstNameController.text.trim().isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("First Name Required"),
+              content: Text("Please enter your first name."),
+            ),
+      );
+      return;
+    }
+
+    if (_lastNameController.text.trim().isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => const AlertDialog(
+              title: Text("Last Name Required"),
+              content: Text("Please enter your last name."),
+            ),
+      );
+      return;
+    }
+
     if (_emailController.text.trim().isEmpty) {
       showDialog(
         context: context,
@@ -76,15 +102,31 @@ class RegisterPage extends StatelessWidget {
       );
 
       try {
+        // Create display name from first and last name
+        String displayName =
+            '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+
         await authService.signUpWithEmailPassword(
           _emailController.text.trim(),
           _pwController.text,
+          displayName: displayName,
         );
-        // Close loading indicator
-        if (context.mounted) Navigator.pop(context);
+
+        // Close loading indicator immediately after auth completes
+        if (context.mounted) {
+          await Future.microtask(() {
+            if (Navigator.canPop(context)) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          });
+        }
       } catch (e) {
         // Close loading indicator
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context, rootNavigator: true).pop();
+          }
+        }
 
         // Get user-friendly error message
         String errorCode = e.toString();
@@ -139,87 +181,147 @@ class RegisterPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // logo
-            Icon(
-              Icons.message,
-              size: 60,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-
-            const SizedBox(height: 50),
-
-            // welcome back massage
-            Text(
-              "Let's Create an account for you",
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: 16,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            // email textfield
-            MyTextfield(
-              hintText: "Email",
-              obscureText: false,
-              controller: _emailController,
-            ),
-
-            const SizedBox(height: 10),
-
-            // paswword textfield
-            MyTextfield(
-              hintText: "Password",
-              obscureText: true,
-              controller: _pwController,
-            ),
-
-            const SizedBox(height: 10),
-
-            // paswword confrim textfield
-            MyTextfield(
-              hintText: "Confirm Password",
-              obscureText: true,
-              controller: _confirmPwController,
-            ),
-
-            const SizedBox(height: 25),
-
-            // login button
-            MyButton(text: "Register", onTap: () => register(context)),
-
-            const SizedBox(height: 25),
-
-            // register now
-            Row(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const SizedBox(height: 40),
+
+                // logo
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF667eea).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person_add_rounded,
+                    size: 60,
+                    color: const Color(0xFF667eea),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // welcome message
                 Text(
-                  "Already have an account? ",
+                  "Create Account",
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black87,
                   ),
                 ),
-                GestureDetector(
-                  onTap: onTap,
-                  child: Text(
-                    "Login now",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+
+                const SizedBox(height: 8),
+
+                Text(
+                  "Sign up to get started",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color:
+                        isDarkMode
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // first name textfield
+                MyTextfield(
+                  hintText: "First Name",
+                  obscureText: false,
+                  controller: _firstNameController,
+                  prefixIcon: Icons.person_outline,
+                ),
+
+                const SizedBox(height: 16),
+
+                // last name textfield
+                MyTextfield(
+                  hintText: "Last Name",
+                  obscureText: false,
+                  controller: _lastNameController,
+                  prefixIcon: Icons.person_outline,
+                ),
+
+                const SizedBox(height: 16),
+
+                // email textfield
+                MyTextfield(
+                  hintText: "Email",
+                  obscureText: false,
+                  controller: _emailController,
+                  prefixIcon: Icons.email_outlined,
+                ),
+
+                const SizedBox(height: 16),
+
+                // password textfield
+                MyTextfield(
+                  hintText: "Password",
+                  obscureText: true,
+                  controller: _pwController,
+                  prefixIcon: Icons.lock_outline,
+                ),
+
+                const SizedBox(height: 16),
+
+                // confirm password textfield
+                MyTextfield(
+                  hintText: "Confirm Password",
+                  obscureText: true,
+                  controller: _confirmPwController,
+                  prefixIcon: Icons.lock_outline,
+                ),
+
+                const SizedBox(height: 32),
+
+                // register button
+                MyButton(text: "Sign Up", onTap: () => register(context)),
+
+                const SizedBox(height: 32),
+
+                // login link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Already have an account? ",
+                      style: TextStyle(
+                        color:
+                            isDarkMode
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                        fontSize: 15,
+                      ),
                     ),
-                  ),
+                    GestureDetector(
+                      onTap: onTap,
+                      child: Text(
+                        "Sign In",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF667eea),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+
+                const SizedBox(height: 40),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );

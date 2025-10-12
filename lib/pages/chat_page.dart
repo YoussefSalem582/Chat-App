@@ -699,6 +699,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       receiverEmoji: _receiverEmoji,
                       currentUserId: _authService.getCurrentUser()!.uid,
                       receiverId: widget.receiverID,
+                      isRead: data["isRead"] ?? false,
                       onDelete:
                           (isCurrentUser && !isDeleted)
                               ? () => _deleteMessage(doc.id)

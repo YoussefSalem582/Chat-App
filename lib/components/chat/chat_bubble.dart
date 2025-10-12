@@ -15,6 +15,7 @@ class ChatBubble extends StatelessWidget {
   final String chatRoomId;
   final Map<String, dynamic>? reactions;
   final Function(String)? onReactionTap;
+  final bool isRead; // Track if message has been read
 
   ChatBubble({
     super.key,
@@ -27,6 +28,7 @@ class ChatBubble extends StatelessWidget {
     required this.chatRoomId,
     this.reactions,
     this.onReactionTap,
+    this.isRead = false,
   });
 
   String _formatTimestamp(Timestamp timestamp) {
@@ -99,15 +101,32 @@ class ChatBubble extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  _formatTimestamp(timestamp),
-                  style: TextStyle(
-                    color:
-                        isCurrentUser
-                            ? Colors.white70
-                            : (isDarkMode ? Colors.white70 : Colors.black54),
-                    fontSize: 10,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatTimestamp(timestamp),
+                      style: TextStyle(
+                        color:
+                            isCurrentUser
+                                ? Colors.white70
+                                : (isDarkMode
+                                    ? Colors.white70
+                                    : Colors.black54),
+                        fontSize: 10,
+                      ),
+                    ),
+                    // Show read indicator for sent messages
+                    if (isCurrentUser && !isDeleted) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        isRead ? Icons.done_all : Icons.done,
+                        size: 14,
+                        color:
+                            isRead ? Colors.lightGreenAccent : Colors.white70,
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

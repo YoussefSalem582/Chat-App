@@ -99,63 +99,78 @@ class ForgotPasswordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: const Text("Forgot Password"),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.grey,
-        elevation: 0,
-      ),
-      body: Center(
+      body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Icon
-              Icon(
-                Icons.lock_reset,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
+              const SizedBox(height: 20),
+
+              // Back button
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                  color: Colors.grey,
+                ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+
+              // Lock icon in circular container
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF667eea).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    size: 60,
+                    color: Color(0xFF667eea),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 40),
 
               // Title
+              const Text(
+                "Forgot Password?",
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 8),
+
+              // Subtitle
               Text(
-                "Reset Your Password",
+                "Enter your email address and we'll send you a link to reset your password",
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.inversePrimary,
+                  fontSize: 16,
+                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                 ),
+                textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 15),
-
-              // Instructions
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
-                  "Enter your email address and we'll send you a link to reset your password.",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
 
               // Email textfield
               MyTextfield(
                 hintText: "Email",
                 obscureText: false,
                 controller: _emailController,
+                prefixIcon: Icons.email_outlined,
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 32),
 
               // Send reset email button
               MyButton(
@@ -163,30 +178,36 @@ class ForgotPasswordPage extends StatelessWidget {
                 onTap: () => sendPasswordReset(context),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 32),
 
               // Back to login
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Remember your password? ",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Text(
-                      "Login",
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Remember your password? ",
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 15,
                       ),
                     ),
-                  ),
-                ],
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Text(
+                        "Login",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF667eea),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
+              const SizedBox(height: 40),
             ],
           ),
         ),

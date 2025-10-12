@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../pages/onboarding_screen.dart';
 import '../../pages/profile_page.dart';
 import '../../pages/settings_page.dart';
 import '../../services/auth/auth_service.dart';
@@ -6,10 +8,22 @@ import '../../services/auth/auth_service.dart';
 class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
 
-  void logout() {
-    // get auth service
+  void logout(BuildContext context) async {
+    // Sign out first
     final auth = AuthService();
-    auth.signOut();
+    await auth.signOut();
+
+    // Reset onboarding flag so user sees it again
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('onboarding_complete');
+
+    // Navigate to onboarding screen and remove all previous routes
+    if (context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        (route) => false, // Remove all previous routes
+      );
+    }
   }
 
   @override
@@ -112,7 +126,7 @@ class MyDrawer extends StatelessWidget {
                 Icons.logout,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              onTap: logout,
+              onTap: () => logout(context),
             ),
           ),
         ],

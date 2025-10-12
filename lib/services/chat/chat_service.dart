@@ -269,6 +269,19 @@ class ChatService {
     }
   }
 
+  // Get unread message count for a specific chat
+  Stream<int> getUnreadMessageCount(String userID, String otherUserID) {
+    String chatRoomID = getChatRoomID(userID, otherUserID);
+    return _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .where('receiverID', isEqualTo: userID)
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
   // Search messages
   Future<List<Map<String, dynamic>>> searchMessages(
     String chatRoomID,

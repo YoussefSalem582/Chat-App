@@ -25,6 +25,7 @@ class ModernChatBubble extends StatefulWidget {
   final String? receiverEmoji;
   final String? currentUserId;
   final String? receiverId;
+  final bool isRead; // Track if message has been read
 
   const ModernChatBubble({
     super.key,
@@ -42,6 +43,7 @@ class ModernChatBubble extends StatefulWidget {
     this.receiverEmoji,
     this.currentUserId,
     this.receiverId,
+    this.isRead = false,
   });
 
   @override
@@ -167,8 +169,6 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
   }
 
   Widget _buildMessageContent(bool isDarkMode) {
-    final type = widget.messageType ?? 'text';
-
     // Check for image
     final imagePath = _getImagePath(widget.message);
     if (imagePath != null) {
@@ -542,9 +542,16 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
                         : Colors.grey.shade600),
           ),
         ),
-        if (widget.isCurrentUser) ...[
+        if (widget.isCurrentUser && !widget.isDeleted) ...[
           const SizedBox(width: 4),
-          Icon(Icons.done_all, size: 14, color: Colors.white.withOpacity(0.8)),
+          Icon(
+            widget.isRead ? Icons.done_all : Icons.done,
+            size: 14,
+            color:
+                widget.isRead
+                    ? Colors.lightGreenAccent
+                    : Colors.white.withOpacity(0.8),
+          ),
         ],
       ],
     );
