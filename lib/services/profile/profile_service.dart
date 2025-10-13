@@ -242,6 +242,70 @@ class ProfileService {
     }
   }
 
+  // Update user location
+  Future<bool> updateLocation(String location) async {
+    try {
+      if (currentUserId == null) return false;
+
+      await _firestore.collection("Users").doc(currentUserId).update({
+        'location': location,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      print('Error updating location: $e');
+      return false;
+    }
+  }
+
+  // Update user website
+  Future<bool> updateWebsite(String website) async {
+    try {
+      if (currentUserId == null) return false;
+
+      await _firestore.collection("Users").doc(currentUserId).update({
+        'website': website,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      print('Error updating website: $e');
+      return false;
+    }
+  }
+
+  // Update username
+  Future<bool> updateUsername(String username) async {
+    try {
+      if (currentUserId == null) return false;
+
+      // Check if username is already taken
+      QuerySnapshot usernameCheck =
+          await _firestore
+              .collection("Users")
+              .where('username', isEqualTo: username)
+              .get();
+
+      if (usernameCheck.docs.isNotEmpty &&
+          usernameCheck.docs.first.id != currentUserId) {
+        print('Username already taken');
+        return false;
+      }
+
+      await _firestore.collection("Users").doc(currentUserId).update({
+        'username': username,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      print('Error updating username: $e');
+      return false;
+    }
+  }
+
   // Get user statistics
   Future<Map<String, int>> getUserStats() async {
     try {

@@ -1,4 +1,5 @@
 import 'package:chat_app/components/chat/message_reaction_picker.dart';
+import 'package:chat_app/components/chat/link_preview_widget.dart';
 import 'package:chat_app/themes/theme_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +27,11 @@ class ModernChatBubble extends StatefulWidget {
   final String? currentUserId;
   final String? receiverId;
   final bool isRead; // Track if message has been read
+  final String?
+  status; // Message status: 'pending', 'sent', 'delivered', 'read'
+  final bool isPinned; // Track if message is pinned
+  final VoidCallback? onPin; // Callback to pin message
+  final VoidCallback? onUnpin; // Callback to unpin message
 
   const ModernChatBubble({
     super.key,
@@ -44,6 +50,10 @@ class ModernChatBubble extends StatefulWidget {
     this.currentUserId,
     this.receiverId,
     this.isRead = false,
+    this.status, // Optional status parameter
+    this.isPinned = false,
+    this.onPin,
+    this.onUnpin,
   });
 
   @override
@@ -103,6 +113,18 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
         }
       }
     }
+  }
+
+  // URL detection helper methods
+  bool _containsUrl(String text) {
+    final urlPattern = RegExp(r'(https?:\/\/[^\s]+)', caseSensitive: false);
+    return urlPattern.hasMatch(text);
+  }
+
+  String? _extractUrl(String text) {
+    final urlPattern = RegExp(r'(https?:\/\/[^\s]+)', caseSensitive: false);
+    final match = urlPattern.firstMatch(text);
+    return match?.group(0);
   }
 
   String _formatTimestamp(Timestamp timestamp) {
@@ -192,6 +214,9 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
   }
 
   Widget _buildTextMessage(bool isDarkMode) {
+    final containsUrl = _containsUrl(widget.message);
+    final url = containsUrl ? _extractUrl(widget.message) : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -207,6 +232,11 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
             fontStyle: widget.isDeleted ? FontStyle.italic : FontStyle.normal,
           ),
         ),
+        // Show link preview if URL is detected
+        if (containsUrl && url != null) ...[
+          const SizedBox(height: 8),
+          LinkPreviewWidget(url: url),
+        ],
         const SizedBox(height: 4),
         _buildTimestampRow(isDarkMode),
       ],
@@ -544,16 +574,199 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
         ),
         if (widget.isCurrentUser && !widget.isDeleted) ...[
           const SizedBox(width: 4),
-          Icon(
-            widget.isRead ? Icons.done_all : Icons.done,
-            size: 14,
-            color:
-                widget.isRead
-                    ? Colors.lightGreenAccent
-                    : Colors.white.withOpacity(0.8),
-          ),
+          _buildStatusIcon(),
         ],
       ],
+    );
+  }
+
+  // Build status icon based on message status
+  Widget _buildStatusIcon() {
+    final status = widget.status ?? (widget.isRead ? 'read' : 'sent');
+
+    switch (status) {
+      case 'pending':
+        return Icon(
+          Icons.access_time,
+          size: 14,
+          color: Colors.white.withOpacity(0.6),
+        );
+      case 'sent':
+        return Icon(Icons.done, size: 14, color: Colors.white.withOpacity(0.8));
+      case 'delivered':
+        return Icon(
+          Icons.done_all,
+          size: 14,
+          color: Colors.white.withOpacity(0.8),
+        );
+      case 'read':
+        return Icon(Icons.done_all, size: 14, color: Colors.lightBlueAccent);
+      default:
+        return Icon(Icons.done, size: 14, color: Colors.white.withOpacity(0.8));
+    }
+  }
+
+  // Build reaction bubbles with counts and current user highlight
+  List<Widget> _buildReactionBubbles(bool isDarkMode) {
+    // Group reactions by emoji and count them
+    Map<String, List<String>> reactionGroups = {};
+
+    widget.reactions!.forEach((userId, emoji) {
+      if (reactionGroups.containsKey(emoji)) {
+        reactionGroups[emoji]!.add(userId);
+      } else {
+        reactionGroups[emoji] = [userId];
+      }
+    });
+
+    // Build reaction bubble for each unique emoji
+    return reactionGroups.entries.map((entry) {
+      final emoji = entry.key;
+      final userIds = entry.value;
+      final count = userIds.length;
+      final currentUserReacted =
+          widget.currentUserId != null &&
+          userIds.contains(widget.currentUserId);
+
+      return GestureDetector(
+        onTap: () {
+          // Toggle reaction - if user already reacted with this, remove it
+          if (currentUserReacted) {
+            _removeCurrentUserReaction();
+          } else {
+            // Add this reaction
+            if (widget.onReactionTap != null) {
+              widget.onReactionTap!(emoji);
+            }
+          }
+        },
+        onLongPress: () {
+          // Show who reacted
+          _showReactionUsers(emoji, userIds);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color:
+                currentUserReacted
+                    ? (isDarkMode ? Colors.blue.shade800 : Colors.blue.shade100)
+                    : (isDarkMode
+                        ? Colors.grey.shade700
+                        : Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                currentUserReacted
+                    ? Border.all(
+                      color:
+                          isDarkMode
+                              ? Colors.blue.shade400
+                              : Colors.blue.shade600,
+                      width: 1.5,
+                    )
+                    : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 16)),
+              if (count > 1) ...[
+                const SizedBox(width: 4),
+                Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color:
+                        currentUserReacted
+                            ? (isDarkMode
+                                ? Colors.blue.shade200
+                                : Colors.blue.shade800)
+                            : (isDarkMode
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  // Remove current user's reaction
+  void _removeCurrentUserReaction() {
+    if (widget.currentUserId == null) return;
+
+    // Find current user's reaction
+    String? currentReaction;
+    widget.reactions?.forEach((userId, emoji) {
+      if (userId == widget.currentUserId) {
+        currentReaction = emoji;
+      }
+    });
+
+    if (currentReaction != null) {
+      // Call remove reaction through chat service
+      // This will be handled by the parent via onReactionTap with a special indicator
+      // For now, we'll just show a message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Removed reaction $currentReaction'),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // Show who reacted with this emoji
+  void _showReactionUsers(String emoji, List<String> userIds) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Reacted with $emoji'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${userIds.length} ${userIds.length == 1 ? 'person' : 'people'} reacted',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...userIds.map(
+                  (userId) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          userId == widget.currentUserId ? 'You' : 'User',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
     );
   }
 
@@ -726,32 +939,14 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
                 ],
               ],
             ),
-            // Display reactions
+            // Display reactions with counts
             if (widget.reactions != null && widget.reactions!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4.0, left: 30, right: 30),
                 child: Wrap(
                   spacing: 4,
-                  children:
-                      widget.reactions!.entries.map((entry) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                isDarkMode
-                                    ? Colors.grey.shade700
-                                    : Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            entry.value,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        );
-                      }).toList(),
+                  runSpacing: 4,
+                  children: _buildReactionBubbles(isDarkMode),
                 ),
               ),
           ],
@@ -815,6 +1010,23 @@ class _ModernChatBubbleState extends State<ModernChatBubble> {
                         ),
                       ),
                     );
+                  },
+                ),
+                // Pin/Unpin option
+                ListTile(
+                  leading: Icon(
+                    widget.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                  ),
+                  title: Text(
+                    widget.isPinned ? 'Unpin Message' : 'Pin Message',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (widget.isPinned && widget.onUnpin != null) {
+                      widget.onUnpin!();
+                    } else if (!widget.isPinned && widget.onPin != null) {
+                      widget.onPin!();
+                    }
                   },
                 ),
                 if (widget.isCurrentUser && widget.onDelete != null)

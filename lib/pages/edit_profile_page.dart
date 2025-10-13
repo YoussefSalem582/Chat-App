@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/profile/profile_service.dart';
+import '../components/components.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -15,6 +16,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _displayNameController;
   late TextEditingController _bioController;
   late TextEditingController _phoneController;
+  late TextEditingController _usernameController;
+  late TextEditingController _locationController;
+  late TextEditingController _websiteController;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -25,6 +29,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _displayNameController = TextEditingController();
     _bioController = TextEditingController();
     _phoneController = TextEditingController();
+    _usernameController = TextEditingController();
+    _locationController = TextEditingController();
+    _websiteController = TextEditingController();
     _loadUserData();
   }
 
@@ -37,6 +44,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       _displayNameController.text = userData['displayName'] ?? '';
       _bioController.text = userData['bio'] ?? '';
       _phoneController.text = userData['phoneNumber'] ?? '';
+      _usernameController.text = userData['username'] ?? '';
+      _locationController.text = userData['location'] ?? '';
+      _websiteController.text = userData['website'] ?? '';
     }
 
     setState(() => _isLoading = false);
@@ -48,27 +58,90 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isSaving = true);
 
     try {
+      bool allSuccess = true;
+      String errorMessage = '';
+
       // Update display name
       if (_displayNameController.text.isNotEmpty) {
-        await _profileService.updateDisplayName(_displayNameController.text);
+        bool success = await _profileService.updateDisplayName(
+          _displayNameController.text,
+        );
+        if (!success) {
+          allSuccess = false;
+          errorMessage = 'Failed to update display name';
+        }
+      }
+
+      // Update username
+      if (_usernameController.text.isNotEmpty) {
+        bool success = await _profileService.updateUsername(
+          _usernameController.text,
+        );
+        if (!success) {
+          allSuccess = false;
+          errorMessage = 'Username already taken or update failed';
+        }
       }
 
       // Update bio
-      await _profileService.updateBio(_bioController.text);
+      bool bioSuccess = await _profileService.updateBio(_bioController.text);
+      if (!bioSuccess) {
+        allSuccess = false;
+        errorMessage = 'Failed to update bio';
+      }
 
       // Update phone number
       if (_phoneController.text.isNotEmpty) {
-        await _profileService.updatePhoneNumber(_phoneController.text);
+        bool success = await _profileService.updatePhoneNumber(
+          _phoneController.text,
+        );
+        if (!success) {
+          allSuccess = false;
+          errorMessage = 'Failed to update phone number';
+        }
+      }
+
+      // Update location
+      if (_locationController.text.isNotEmpty) {
+        bool success = await _profileService.updateLocation(
+          _locationController.text,
+        );
+        if (!success) {
+          allSuccess = false;
+          errorMessage = 'Failed to update location';
+        }
+      }
+
+      // Update website
+      if (_websiteController.text.isNotEmpty) {
+        bool success = await _profileService.updateWebsite(
+          _websiteController.text,
+        );
+        if (!success) {
+          allSuccess = false;
+          errorMessage = 'Failed to update website';
+        }
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true); // Return true to indicate success
+        if (allSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile updated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true); // Return true to indicate success
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                errorMessage.isNotEmpty ? errorMessage : 'Some updates failed',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -91,6 +164,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _displayNameController.dispose();
     _bioController.dispose();
     _phoneController.dispose();
+    _usernameController.dispose();
+    _locationController.dispose();
+    _websiteController.dispose();
     super.dispose();
   }
 
@@ -103,7 +179,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       body: SafeArea(
         child:
             _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? ProfileShimmerLoading(
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                )
                 : SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Form(
@@ -261,6 +339,96 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           hint: '+1 234 567 8900',
                           isDark: isDarkMode,
                           keyboardType: TextInputType.phone,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Username section
+                        Text(
+                          'Username',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          controller: _usernameController,
+                          label: 'Username',
+                          icon: Icons.alternate_email,
+                          hint: 'username',
+                          isDark: isDarkMode,
+                          validator: (value) {
+                            if (value != null && value.isNotEmpty) {
+                              if (value.length < 3) {
+                                return 'Username must be at least 3 characters';
+                              }
+                              if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                                return 'Username can only contain letters, numbers, and underscores';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Location section
+                        Text(
+                          'Location',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          controller: _locationController,
+                          label: 'Location',
+                          icon: Icons.location_on_outlined,
+                          hint: 'City, Country',
+                          isDark: isDarkMode,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Website section
+                        Text(
+                          'Website',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          controller: _websiteController,
+                          label: 'Website',
+                          icon: Icons.link,
+                          hint: 'https://yourwebsite.com',
+                          isDark: isDarkMode,
+                          keyboardType: TextInputType.url,
+                          validator: (value) {
+                            if (value != null && value.isNotEmpty) {
+                              if (!value.startsWith('http://') &&
+                                  !value.startsWith('https://')) {
+                                return 'Website must start with http:// or https://';
+                              }
+                            }
+                            return null;
+                          },
                         ),
 
                         const SizedBox(height: 40),

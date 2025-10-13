@@ -512,24 +512,10 @@ class _HomePageState extends State<HomePage>
           );
         }
 
-        // loading
+        // loading - show shimmer
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Loading conversations...",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          return ChatListShimmerLoading(
+            isDark: Theme.of(context).brightness == Brightness.dark,
           );
         }
 
@@ -614,22 +600,8 @@ class _HomePageState extends State<HomePage>
           future: _getUsersWithLastMessageInfo(filteredUsers, currentUserId!),
           builder: (context, usersSnapshot) {
             if (!usersSnapshot.hasData) {
-              return SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Loading conversations...",
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              return ChatListShimmerLoading(
+                isDark: Theme.of(context).brightness == Brightness.dark,
               );
             }
 

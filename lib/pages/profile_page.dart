@@ -303,6 +303,200 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final authService = AuthService();
+    final currentUser = authService.getCurrentUser();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (currentUser?.email == null) {
+      _showErrorSnackBar('No email associated with this account');
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_outlined,
+                    color: Colors.red,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Reset Password',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'A password reset link will be sent to:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.email_outlined,
+                        size: 20,
+                        color: Color(0xFF667eea),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          currentUser!.email!,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF667eea),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Please check your email and follow the instructions to reset your password.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('Send Reset Link'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        await authService.sendPasswordResetEmail(currentUser!.email!);
+
+        if (mounted) {
+          Navigator.pop(context); // Close loading dialog
+
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Password reset link sent! Check your email.',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // Close loading dialog
+
+          // Handle specific error codes
+          String errorMessage;
+          String errorCode = e.toString();
+
+          if (errorCode.contains('user-not-found')) {
+            errorMessage = 'No account found with this email address.';
+          } else if (errorCode.contains('invalid-email')) {
+            errorMessage = 'Invalid email address.';
+          } else if (errorCode.contains('network-request-failed')) {
+            errorMessage = 'Network error. Please check your connection.';
+          } else if (errorCode.contains('too-many-requests')) {
+            errorMessage = 'Too many requests. Please try again later.';
+          } else {
+            errorMessage = 'Failed to send reset link. Please try again.';
+          }
+
+          _showErrorSnackBar(errorMessage);
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -502,6 +696,66 @@ class _ProfilePageState extends State<ProfilePage>
                               ),
                             ],
 
+                            // Show username if available
+                            if (_userData?['username'] != null &&
+                                _userData!['username']
+                                    .toString()
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              ProfileInfoCard(
+                                icon: Icons.alternate_email,
+                                title: 'Username',
+                                subtitle: '@${_userData!['username']}',
+                                isDark: isDark,
+                                onTap:
+                                    () => _copyToClipboard(
+                                      context,
+                                      '@${_userData!['username']}',
+                                      'Username',
+                                    ),
+                              ),
+                            ],
+
+                            // Show location if available
+                            if (_userData?['location'] != null &&
+                                _userData!['location']
+                                    .toString()
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              ProfileInfoCard(
+                                icon: Icons.location_on_outlined,
+                                title: 'Location',
+                                subtitle: _userData!['location'],
+                                isDark: isDark,
+                                onTap:
+                                    () => _copyToClipboard(
+                                      context,
+                                      _userData!['location'] ?? '',
+                                      'Location',
+                                    ),
+                              ),
+                            ],
+
+                            // Show website if available
+                            if (_userData?['website'] != null &&
+                                _userData!['website']
+                                    .toString()
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              ProfileInfoCard(
+                                icon: Icons.link,
+                                title: 'Website',
+                                subtitle: _userData!['website'],
+                                isDark: isDark,
+                                onTap:
+                                    () => _copyToClipboard(
+                                      context,
+                                      _userData!['website'] ?? '',
+                                      'Website',
+                                    ),
+                              ),
+                            ],
+
                             const SizedBox(height: 30),
 
                             // Quick Actions Section
@@ -509,8 +763,10 @@ class _ProfilePageState extends State<ProfilePage>
                               title: 'Quick Actions',
                               isDark: isDark,
                             ),
+
+                            // Edit Profile
                             ProfileActionCard(
-                              icon: Icons.edit,
+                              icon: Icons.edit_outlined,
                               iconColor: Colors.blue,
                               title: 'Edit Profile',
                               subtitle: 'Update your information',
@@ -520,18 +776,53 @@ class _ProfilePageState extends State<ProfilePage>
 
                             const SizedBox(height: 12),
 
+                            // Change Photo
                             ProfileActionCard(
-                              icon: Icons.lock_outline,
+                              icon: Icons.photo_camera_outlined,
+                              iconColor: Colors.purple,
+                              title: 'Change Photo',
+                              subtitle: 'Update your profile picture',
+                              isDark: isDark,
+                              onTap: _showImageSourceDialog,
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Share Profile
+                            ProfileActionCard(
+                              icon: Icons.share_outlined,
+                              iconColor: Colors.green,
+                              title: 'Share Profile',
+                              subtitle: 'Share your contact info',
+                              isDark: isDark,
+                              onTap: () {
+                                final email = _userData?['email'] ?? '';
+                                final displayName =
+                                    _userData?['displayName'] ?? 'User';
+                                _copyToClipboard(
+                                  context,
+                                  '$displayName\nEmail: $email',
+                                  'Profile info',
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // QR Code
+                            ProfileActionCard(
+                              icon: Icons.qr_code_2_outlined,
                               iconColor: Colors.orange,
-                              title: 'Change Password',
-                              subtitle: 'Update your security',
+                              title: 'My QR Code',
+                              subtitle: 'Show your QR code',
                               isDark: isDark,
                               onTap: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      'Change Password coming soon!',
+                                      'QR Code feature coming soon!',
                                     ),
+                                    duration: Duration(seconds: 2),
                                   ),
                                 );
                               },
@@ -539,11 +830,12 @@ class _ProfilePageState extends State<ProfilePage>
 
                             const SizedBox(height: 12),
 
+                            // Privacy Settings
                             ProfileActionCard(
                               icon: Icons.privacy_tip_outlined,
-                              iconColor: Colors.purple,
+                              iconColor: Colors.teal,
                               title: 'Privacy Settings',
-                              subtitle: 'Control your privacy',
+                              subtitle: 'Control who can see your info',
                               isDark: isDark,
                               onTap: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -551,6 +843,40 @@ class _ProfilePageState extends State<ProfilePage>
                                     content: Text(
                                       'Privacy Settings coming soon!',
                                     ),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Change Password
+                            ProfileActionCard(
+                              icon: Icons.lock_reset_outlined,
+                              iconColor: Colors.red,
+                              title: 'Change Password',
+                              subtitle: 'Reset your account password',
+                              isDark: isDark,
+                              onTap: () => _showChangePasswordDialog(),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Notification Settings
+                            ProfileActionCard(
+                              icon: Icons.notifications_outlined,
+                              iconColor: Colors.amber,
+                              title: 'Notifications',
+                              subtitle: 'Manage notification preferences',
+                              isDark: isDark,
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Notification settings coming soon!',
+                                    ),
+                                    duration: Duration(seconds: 2),
                                   ),
                                 );
                               },

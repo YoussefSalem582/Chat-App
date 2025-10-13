@@ -16,3 +16,7 @@ export 'chat_options_sheet.dart';
 export 'wallpaper_picker_dialog.dart';
 export 'message_input_bar.dart';
 export 'scroll_to_bottom_button.dart';
+export 'link_preview_widget.dart';
+export 'pinned_messages_bar.dart';
+
+// Voice recorder and player removed - requires audio packages not compatible with all platforms

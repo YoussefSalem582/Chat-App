@@ -63,6 +63,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   String? _currentUserEmoji;
   String? _receiverEmoji;
 
+  // Pinned messages
+  List<QueryDocumentSnapshot> _pinnedMessages = [];
+
+  // Pagination state
+  List<QueryDocumentSnapshot> _messages = [];
+  bool _isLoadingMessages = false;
+  bool _hasMoreMessages = true;
+  DocumentSnapshot? _lastDocument;
+  bool _initialLoadComplete = false;
+
   @override
   void initState() {
     super.initState();
@@ -125,6 +135,156 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       chatRoomID,
       _authService.getCurrentUser()!.uid,
     );
+
+    // Listen to pinned messages
+    _chatService
+        .getPinnedMessages(
+          _authService.getCurrentUser()!.uid,
+          widget.receiverID,
+        )
+        .listen((snapshot) {
+          if (mounted) {
+            setState(() {
+              _pinnedMessages = snapshot.docs;
+            });
+          }
+        });
+
+    // Load initial messages with pagination
+    _loadInitialMessages();
+
+    // Listen for new messages in real-time
+    _setupRealtimeMessageListener();
+  }
+
+  // Setup real-time listener for new messages
+  StreamSubscription<QuerySnapshot>? _messageSubscription;
+
+  void _setupRealtimeMessageListener() {
+    final currentUserId = _authService.getCurrentUser()!.uid;
+    List<String> ids = [currentUserId, widget.receiverID];
+    ids.sort();
+    String chatRoomID = ids.join("_");
+
+    _messageSubscription = _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .orderBy("timestamp", descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+          if (snapshot.docs.isNotEmpty && _messages.isNotEmpty) {
+            final latestMessage = snapshot.docs.first;
+            final latestMessageId = latestMessage.id;
+
+            // Check if this is a new message (not in our list)
+            final exists = _messages.any((msg) => msg.id == latestMessageId);
+
+            if (!exists && mounted) {
+              setState(() {
+                // Add new message at the beginning (it's descending order)
+                _messages.insert(0, latestMessage);
+              });
+
+              // Auto-scroll to bottom if near bottom
+              if (_scrollController.hasClients) {
+                final maxScroll = _scrollController.position.maxScrollExtent;
+                final currentScroll = _scrollController.offset;
+                final isNearBottom = maxScroll - currentScroll < 200;
+
+                if (isNearBottom) {
+                  Future.delayed(
+                    const Duration(milliseconds: 100),
+                    () => scrollDown(),
+                  );
+                }
+              }
+            }
+          }
+        });
+  }
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Load initial batch of messages
+  Future<void> _loadInitialMessages() async {
+    if (_isLoadingMessages) return;
+
+    setState(() {
+      _isLoadingMessages = true;
+    });
+
+    try {
+      final snapshot = await _chatService.getInitialMessages(
+        userID: _authService.getCurrentUser()!.uid,
+        otherUserID: widget.receiverID,
+        limit: 50,
+      );
+
+      if (mounted) {
+        setState(() {
+          _messages = snapshot.docs;
+          _initialLoadComplete = true;
+          _isLoadingMessages = false;
+          _hasMoreMessages = snapshot.docs.length >= 50;
+
+          if (snapshot.docs.isNotEmpty) {
+            _lastDocument = snapshot.docs.last;
+          }
+        });
+
+        // Scroll to bottom after initial load
+        Future.delayed(const Duration(milliseconds: 300), () => scrollDown());
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
+      print('Error loading initial messages: $e');
+    }
+  }
+
+  // Load more messages (older messages)
+  Future<void> _loadMoreMessages() async {
+    if (_isLoadingMessages || !_hasMoreMessages || _lastDocument == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingMessages = true;
+    });
+
+    try {
+      final snapshot = await _chatService.loadMoreMessages(
+        userID: _authService.getCurrentUser()!.uid,
+        otherUserID: widget.receiverID,
+        lastDocument: _lastDocument!,
+        limit: 50,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (snapshot.docs.isEmpty) {
+            _hasMoreMessages = false;
+          } else {
+            _messages.addAll(snapshot.docs);
+            _lastDocument = snapshot.docs.last;
+            _hasMoreMessages = snapshot.docs.length >= 50;
+          }
+          _isLoadingMessages = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
+      print('Error loading more messages: $e');
+    }
   }
 
   @override
@@ -144,6 +304,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     myFocusNode.dispose();
     _messageController.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
+    // Cancel message subscription
+    _messageSubscription?.cancel();
     // Clear typing status when leaving
     _chatService.setTypingStatus(widget.receiverID, false);
     // Update offline status
@@ -290,6 +453,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         children: [
           Column(
             children: [
+              // Pinned messages bar
+              if (_pinnedMessages.isNotEmpty)
+                PinnedMessagesBar(
+                  pinnedMessages: _pinnedMessages,
+                  onTap: _showPinnedMessagesDialog,
+                  isDarkMode: Theme.of(context).brightness == Brightness.dark,
+                ),
+
               // Search bar (if searching)
               if (_isSearching)
                 ChatSearchBar(
@@ -434,105 +605,132 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       );
     }
 
-    return StreamBuilder(
-      stream: _chatService.getMessages(widget.receiverID, senderID),
-      builder: (context, snapshot) {
-        // errors
-        if (snapshot.hasError) {
-          return ErrorMessage(
-            message: "Error loading messages\n${snapshot.error}",
-            onRetry: () {
-              setState(() {});
+    // Show loading indicator during initial load
+    if (!_initialLoadComplete) {
+      return const LoadingIndicator(message: "Loading messages...");
+    }
+
+    // No messages yet
+    if (_messages.isEmpty) {
+      return EmptyState(
+        icon: Icons.chat_bubble_outline,
+        title: "No messages yet",
+        message: "Start the conversation!\nSend your first message below.",
+      );
+    }
+
+    // Check for typing status and show indicator
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _chatService.getTypingStatus(
+        _authService.getCurrentUser()!.uid,
+        widget.receiverID,
+      ),
+      builder: (context, typingSnapshot) {
+        bool isTyping = false;
+        if (typingSnapshot.hasData && typingSnapshot.data != null) {
+          var data = typingSnapshot.data!.data() as Map<String, dynamic>?;
+          isTyping = data?['typing_${widget.receiverID}'] ?? false;
+        }
+
+        return RefreshIndicator(
+          onRefresh: _loadInitialMessages,
+          child: ListView.builder(
+            controller: _scrollController,
+            reverse: false,
+            itemCount:
+                _messages.length +
+                (_hasMoreMessages ? 1 : 0) +
+                (isTyping ? 1 : 0),
+            itemBuilder: (context, index) {
+              // Load more button at the top
+              if (_hasMoreMessages && index == 0) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child:
+                        _isLoadingMessages
+                            ? const Column(
+                              children: [
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Loading older messages...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            )
+                            : OutlinedButton.icon(
+                              onPressed: _loadMoreMessages,
+                              icon: const Icon(Icons.history, size: 18),
+                              label: const Text('Load Older Messages'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                  ),
+                );
+              }
+
+              // Typing indicator at the bottom
+              if (isTyping &&
+                  index == _messages.length + (_hasMoreMessages ? 1 : 0)) {
+                return const Padding(
+                  padding: EdgeInsets.only(left: 16.0),
+                  child: TypingIndicator(),
+                );
+              }
+
+              // Adjust index for messages (account for load more button)
+              final messageIndex = _hasMoreMessages ? index - 1 : index;
+              final doc = _messages.reversed.toList()[messageIndex];
+
+              // Add date separator
+              bool showDateSeparator = false;
+              if (messageIndex == 0) {
+                showDateSeparator = true;
+              } else {
+                final prevDoc = _messages.reversed.toList()[messageIndex - 1];
+                final prevTimestamp =
+                    (prevDoc.data() as Map<String, dynamic>)['timestamp']
+                        as Timestamp;
+                final currentTimestamp =
+                    (doc.data() as Map<String, dynamic>)['timestamp']
+                        as Timestamp;
+
+                final prevDate = prevTimestamp.toDate();
+                final currentDate = currentTimestamp.toDate();
+
+                showDateSeparator =
+                    prevDate.day != currentDate.day ||
+                    prevDate.month != currentDate.month ||
+                    prevDate.year != currentDate.year;
+              }
+
+              return Column(
+                children: [
+                  if (showDateSeparator)
+                    MessageDateSeparator(
+                      date:
+                          (doc.data() as Map<String, dynamic>)['timestamp']
+                              .toDate(),
+                    ),
+                  _buildMessageItem(doc),
+                ],
+              );
             },
-          );
-        }
-
-        // loading - only show on initial load when there's no data yet
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return const LoadingIndicator(message: "Loading messages...");
-        }
-
-        // No messages yet
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return EmptyState(
-            icon: Icons.chat_bubble_outline,
-            title: "No messages yet",
-            message: "Start the conversation!\nSend your first message below.",
-          );
-        }
-
-        // Check for typing status and show indicator
-        return StreamBuilder<DocumentSnapshot>(
-          stream: _chatService.getTypingStatus(
-            _authService.getCurrentUser()!.uid,
-            widget.receiverID,
           ),
-          builder: (context, typingSnapshot) {
-            bool isTyping = false;
-            if (typingSnapshot.hasData && typingSnapshot.data != null) {
-              var data = typingSnapshot.data!.data() as Map<String, dynamic>?;
-              isTyping = data?['typing_${widget.receiverID}'] ?? false;
-            }
-
-            final messages = snapshot.data!.docs;
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                setState(() {});
-                await Future.delayed(const Duration(milliseconds: 500));
-              },
-              child: ListView.builder(
-                controller: _scrollController,
-                reverse: false,
-                itemCount: messages.length + (isTyping ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (isTyping && index == messages.length) {
-                    return const Padding(
-                      padding: EdgeInsets.only(left: 16.0),
-                      child: TypingIndicator(),
-                    );
-                  }
-
-                  final doc = messages.reversed.toList()[index];
-
-                  // Add date separator
-                  bool showDateSeparator = false;
-                  if (index == 0) {
-                    showDateSeparator = true;
-                  } else {
-                    final prevDoc = messages.reversed.toList()[index - 1];
-                    final prevTimestamp =
-                        (prevDoc.data() as Map<String, dynamic>)['timestamp']
-                            as Timestamp;
-                    final currentTimestamp =
-                        (doc.data() as Map<String, dynamic>)['timestamp']
-                            as Timestamp;
-
-                    final prevDate = prevTimestamp.toDate();
-                    final currentDate = currentTimestamp.toDate();
-
-                    showDateSeparator =
-                        prevDate.day != currentDate.day ||
-                        prevDate.month != currentDate.month ||
-                        prevDate.year != currentDate.year;
-                  }
-
-                  return Column(
-                    children: [
-                      if (showDateSeparator)
-                        MessageDateSeparator(
-                          date:
-                              (doc.data() as Map<String, dynamic>)['timestamp']
-                                  .toDate(),
-                        ),
-                      _buildMessageItem(doc),
-                    ],
-                  );
-                },
-              ),
-            );
-          },
         );
       },
     );
@@ -700,12 +898,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       currentUserId: _authService.getCurrentUser()!.uid,
                       receiverId: widget.receiverID,
                       isRead: data["isRead"] ?? false,
+                      status: data["status"] as String?,
+                      isPinned: data["isPinned"] ?? false,
                       onDelete:
                           (isCurrentUser && !isDeleted)
                               ? () => _deleteMessage(doc.id)
                               : null,
                       onReactionTap:
                           (reaction) => _addReaction(doc.id, reaction),
+                      onPin: () => _pinMessage(doc.id),
+                      onUnpin: () => _unpinMessage(doc.id),
                     ),
                   ],
                 ),
@@ -717,13 +919,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  // add reaction to message
+  // add/toggle reaction to message
   void _addReaction(String messageID, String reaction) {
     String chatRoomID = _chatService.getChatRoomID(
       _authService.getCurrentUser()!.uid,
       widget.receiverID,
     );
-    _chatService.addReaction(chatRoomID, messageID, reaction);
+    _chatService.toggleReaction(chatRoomID, messageID, reaction);
   }
 
   // delete message
@@ -733,6 +935,127 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       widget.receiverID,
     );
     _chatService.deleteMessage(chatRoomID, messageID);
+  }
+
+  // Pin message
+  void _pinMessage(String messageID) {
+    String chatRoomID = _chatService.getChatRoomID(
+      _authService.getCurrentUser()!.uid,
+      widget.receiverID,
+    );
+    _chatService.pinMessage(chatRoomID, messageID);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message pinned'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // Unpin message
+  void _unpinMessage(String messageID) {
+    String chatRoomID = _chatService.getChatRoomID(
+      _authService.getCurrentUser()!.uid,
+      widget.receiverID,
+    );
+    _chatService.unpinMessage(chatRoomID, messageID);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message unpinned'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // Show pinned messages dialog
+  void _showPinnedMessagesDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.push_pin, size: 20),
+                const SizedBox(width: 8),
+                Text('Pinned Messages (${_pinnedMessages.length})'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _pinnedMessages.length,
+                itemBuilder: (context, index) {
+                  final doc = _pinnedMessages[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final message = data['message'] ?? '';
+                  final isDeleted = data['isDeleted'] ?? false;
+                  final timestamp = data['timestamp'] as Timestamp?;
+
+                  return ListTile(
+                    leading: const Icon(Icons.message, size: 20),
+                    title: Text(
+                      isDeleted ? 'DELETED MESSAGE' : message,
+                      style: TextStyle(
+                        fontStyle:
+                            isDeleted ? FontStyle.italic : FontStyle.normal,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle:
+                        timestamp != null
+                            ? Text(
+                              _formatTimestamp(timestamp),
+                              style: const TextStyle(fontSize: 11),
+                            )
+                            : null,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.push_pin_outlined, size: 18),
+                      onPressed: () {
+                        _unpinMessage(doc.id);
+                        if (_pinnedMessages.length == 1) {
+                          Navigator.pop(context);
+                        }
+                      },
+                      tooltip: 'Unpin',
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _jumpToMessage(doc.id);
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Jump to specific message
+  void _jumpToMessage(String messageID) {
+    // For now, just scroll to bottom and show a message
+    // In a full implementation, you'd calculate the message position
+    scrollDown();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Scrolling to message...'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(label: 'OK', onPressed: () {}),
+      ),
+    );
   }
 
   // Load chat preferences

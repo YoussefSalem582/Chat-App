@@ -7,6 +7,9 @@ export 'common/common.dart';
 // Chat Components
 export 'chat/chat.dart';
 
+// Home Components
+export 'home/home.dart';
+
 // User Components
 export 'user/user.dart';
 

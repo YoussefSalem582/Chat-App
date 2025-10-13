@@ -99,6 +99,71 @@ class ChatService {
         .snapshots();
   }
 
+  // get messages with pagination
+  Stream<QuerySnapshot> getMessagesPaginated({
+    required String userID,
+    required String otherUserID,
+    int limit = 50,
+    DocumentSnapshot? startAfter,
+  }) {
+    List<String> ids = [userID, otherUserID];
+    ids.sort();
+    String chatRoomID = ids.join("_");
+
+    Query query = _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .orderBy("timestamp", descending: true)
+        .limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    return query.snapshots();
+  }
+
+  // get initial messages batch
+  Future<QuerySnapshot> getInitialMessages({
+    required String userID,
+    required String otherUserID,
+    int limit = 50,
+  }) async {
+    List<String> ids = [userID, otherUserID];
+    ids.sort();
+    String chatRoomID = ids.join("_");
+
+    return await _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .orderBy("timestamp", descending: true)
+        .limit(limit)
+        .get();
+  }
+
+  // load more messages
+  Future<QuerySnapshot> loadMoreMessages({
+    required String userID,
+    required String otherUserID,
+    required DocumentSnapshot lastDocument,
+    int limit = 50,
+  }) async {
+    List<String> ids = [userID, otherUserID];
+    ids.sort();
+    String chatRoomID = ids.join("_");
+
+    return await _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .orderBy("timestamp", descending: true)
+        .startAfterDocument(lastDocument)
+        .limit(limit)
+        .get();
+  }
+
   // delete message (soft delete - mark as deleted instead of removing)
   Future<void> deleteMessage(String chatRoomID, String messageID) async {
     try {
@@ -188,6 +253,39 @@ class ChatService {
           .update({'reactions.$currentUserID': FieldValue.delete()});
     } catch (e) {
       throw "Failed to remove reaction: ${e.toString()}";
+    }
+  }
+
+  // Toggle reaction - add if not present, remove if present with same emoji
+  Future<void> toggleReaction(
+    String chatRoomID,
+    String messageID,
+    String reaction,
+  ) async {
+    String currentUserID = _auth.currentUser!.uid;
+
+    try {
+      // Get current message to check existing reaction
+      DocumentSnapshot doc =
+          await _firestore
+              .collection("chat_rooms")
+              .doc(chatRoomID)
+              .collection("messages")
+              .doc(messageID)
+              .get();
+
+      Map<String, dynamic>? reactions =
+          (doc.data() as Map<String, dynamic>?)?['reactions'];
+
+      // If user already has this exact reaction, remove it
+      if (reactions != null && reactions[currentUserID] == reaction) {
+        await removeReaction(chatRoomID, messageID);
+      } else {
+        // Otherwise, add/update the reaction
+        await addReaction(chatRoomID, messageID, reaction);
+      }
+    } catch (e) {
+      throw "Failed to toggle reaction: ${e.toString()}";
     }
   }
 
@@ -307,6 +405,75 @@ class ChatService {
           .toList();
     } catch (e) {
       throw "Failed to search messages: ${e.toString()}";
+    }
+  }
+
+  // Pin a message
+  Future<void> pinMessage(String chatRoomID, String messageID) async {
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .update({
+            'isPinned': true,
+            'pinnedAt': FieldValue.serverTimestamp(),
+            'pinnedBy': _auth.currentUser!.uid,
+          });
+    } catch (e) {
+      throw "Failed to pin message: ${e.toString()}";
+    }
+  }
+
+  // Unpin a message
+  Future<void> unpinMessage(String chatRoomID, String messageID) async {
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .update({
+            'isPinned': false,
+            'pinnedAt': FieldValue.delete(),
+            'pinnedBy': FieldValue.delete(),
+          });
+    } catch (e) {
+      throw "Failed to unpin message: ${e.toString()}";
+    }
+  }
+
+  // Get pinned messages
+  Stream<QuerySnapshot> getPinnedMessages(String userID, String otherUserID) {
+    String chatRoomID = getChatRoomID(userID, otherUserID);
+    return _firestore
+        .collection("chat_rooms")
+        .doc(chatRoomID)
+        .collection("messages")
+        .where('isPinned', isEqualTo: true)
+        .orderBy('pinnedAt', descending: true)
+        .snapshots();
+  }
+
+  // Update message status (pending, sent, delivered, read)
+  Future<void> updateMessageStatus(
+    String chatRoomID,
+    String messageID,
+    String status,
+  ) async {
+    try {
+      await _firestore
+          .collection("chat_rooms")
+          .doc(chatRoomID)
+          .collection("messages")
+          .doc(messageID)
+          .update({
+            'status': status,
+            '${status}At': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      print('Failed to update message status: $e');
     }
   }
 }
